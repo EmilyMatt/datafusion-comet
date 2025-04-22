@@ -84,7 +84,7 @@ object RewriteJoin extends JoinSelectionHelper {
     case _ => plan
   }
 
-  def getOptimalBuildSide(join: Join): BuildSide = {
+  private def getOptimalBuildSide(join: Join): BuildSide = {
     val leftSize = join.left.stats.sizeInBytes
     val rightSize = join.right.stats.sizeInBytes
     val leftRowCount = join.left.stats.rowCount
