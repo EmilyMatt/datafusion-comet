@@ -20,6 +20,7 @@
 package org.apache.comet.rules
 
 import scala.annotation.tailrec
+
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{Divide, DoubleLiteral, EqualNullSafe, EqualTo, Expression, FloatLiteral, GreaterThan, GreaterThanOrEqual, KnownFloatingPointNormalized, LessThan, LessThanOrEqual, NamedExpression, Remainder}
 import org.apache.spark.sql.catalyst.expressions.aggregate.{Final, Partial}
@@ -27,19 +28,10 @@ import org.apache.spark.sql.catalyst.optimizer.NormalizeNaNAndZero
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.comet.{CometBroadcastExchangeExec, CometBroadcastHashJoinExec, CometCoalesceExec, CometCollectLimitExec, CometColumnarToRowExec, CometExec, CometExpandExec, CometFilterExec, CometGlobalLimitExec, CometHashAggregateExec, CometHashJoinExec, CometLocalLimitExec, CometNativeExec, CometNativeScanExec, CometPlan, CometProjectExec, CometScanExec, CometScanWrapper, CometSinkPlaceHolder, CometSortExec, CometSortMergeJoinExec, CometSparkToColumnarExec, CometTakeOrderedAndProjectExec, CometUnionExec, CometWindowExec, SerializedPlan}
 import org.apache.spark.sql.comet.execution.shuffle.{CometColumnarShuffle, CometNativeShuffle, CometShuffleExchangeExec, CometShuffleManager}
+import org.apache.spark.sql.comet.util.Utils
 import org.apache.spark.sql.execution.{CoalesceExec, CollectLimitExec, ColumnarRule, ColumnarToRowExec, ExpandExec, FileSourceScanExec, FilterExec, GlobalLimitExec, LeafExecNode, LocalLimitExec, ProjectExec, RowToColumnarExec, SortExec, SparkPlan, TakeOrderedAndProjectExec, UnionExec}
 import org.apache.spark.sql.execution.adaptive.{AQEShuffleReadExec, BroadcastQueryStageExec, QueryStageExec, ShuffleQueryStageExec}
 import org.apache.spark.sql.execution.aggregate.{BaseAggregateExec, HashAggregateExec, ObjectHashAggregateExec}
-import org.apache.spark.sql.execution.exchange.{BroadcastExchangeExec, ReusedExchangeExec, ShuffleExchangeExec}
-import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, ShuffledHashJoinExec, SortMergeJoinExec}
-import org.apache.spark.sql.execution.window.WindowExec
-import org.apache.spark.sql.types.{DoubleType, FloatType}
-import org.apache.comet.{CometConf, ExtendedExplainInfo}
-import org.apache.comet.CometConf.{COMET_ANSI_MODE_ENABLED, COMET_EXEC_BROADCAST_EXCHANGE_ENABLED, COMET_EXEC_BROADCAST_FORCE_ENABLED, COMET_EXEC_ENABLED, COMET_EXEC_SHUFFLE_ENABLED, COMET_NATIVE_SCAN_IMPL, COMET_SHUFFLE_FALLBACK_TO_COLUMNAR, COMET_SHUFFLE_MODE, COMET_SPARK_TO_ARROW_ENABLED, COMET_SPARK_TO_ARROW_SUPPORTED_OPERATOR_LIST}
-import org.apache.comet.CometExplainInfo.getActualPlan
-import org.apache.comet.CometSparkSessionExtensions.{createMessage, isANSIEnabled, isCometLoaded, isCometScan, isSpark40Plus, withInfo}
-import org.apache.comet.serde.{OperatorOuterClass, QueryPlanSerde}
-import org.apache.spark.sql.comet.util.Utils
 import org.apache.spark.sql.execution.datasources.csv.CSVFileFormat
 import org.apache.spark.sql.execution.datasources.json.JsonFileFormat
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
@@ -47,7 +39,17 @@ import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.execution.datasources.v2.csv.CSVScan
 import org.apache.spark.sql.execution.datasources.v2.json.JsonScan
 import org.apache.spark.sql.execution.datasources.v2.parquet.ParquetScan
+import org.apache.spark.sql.execution.exchange.{BroadcastExchangeExec, ReusedExchangeExec, ShuffleExchangeExec}
+import org.apache.spark.sql.execution.joins.{BroadcastHashJoinExec, ShuffledHashJoinExec, SortMergeJoinExec}
+import org.apache.spark.sql.execution.window.WindowExec
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.{DoubleType, FloatType}
+
+import org.apache.comet.{CometConf, ExtendedExplainInfo}
+import org.apache.comet.CometConf.{COMET_ANSI_MODE_ENABLED, COMET_EXEC_BROADCAST_EXCHANGE_ENABLED, COMET_EXEC_BROADCAST_FORCE_ENABLED, COMET_EXEC_ENABLED, COMET_EXEC_SHUFFLE_ENABLED, COMET_NATIVE_SCAN_IMPL, COMET_SHUFFLE_FALLBACK_TO_COLUMNAR, COMET_SHUFFLE_MODE, COMET_SPARK_TO_ARROW_ENABLED, COMET_SPARK_TO_ARROW_SUPPORTED_OPERATOR_LIST}
+import org.apache.comet.CometExplainInfo.getActualPlan
+import org.apache.comet.CometSparkSessionExtensions.{createMessage, isCometLoaded, isCometScan, isSpark40Plus, withInfo}
+import org.apache.comet.serde.{OperatorOuterClass, QueryPlanSerde}
 
 case class CometExecRule(session: SparkSession) extends Rule[SparkPlan] {
   private def applyCometShuffle(plan: SparkPlan): SparkPlan = {

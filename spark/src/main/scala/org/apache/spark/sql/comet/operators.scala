@@ -22,7 +22,6 @@ package org.apache.spark.sql.comet
 import java.io.ByteArrayOutputStream
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
@@ -168,7 +167,7 @@ abstract class CometNativeExec extends CometExec {
     CometMetricNode.baselineMetrics(sparkContext)
 
   private def prepareSubqueries(sparkPlan: SparkPlan): Unit = {
-    val runningSubqueries = new ArrayBuffer[ExecSubqueryExpression]
+    val runningSubqueries = new mutable.ArrayBuffer[ExecSubqueryExpression]
 
     sparkPlan.children.foreach(prepareSubqueries)
 
@@ -228,8 +227,8 @@ abstract class CometNativeExec extends CometExec {
 
         // Collect the input ColumnarBatches from the child operators and create a CometExecIterator
         // to execute the native plan.
-        val sparkPlans = ArrayBuffer.empty[SparkPlan]
-        val inputs = ArrayBuffer.empty[RDD[ColumnarBatch]]
+        val sparkPlans = mutable.ArrayBuffer.empty[SparkPlan]
+        val inputs = mutable.ArrayBuffer.empty[RDD[ColumnarBatch]]
 
         foreachUntilCometInput(this)(sparkPlans += _)
 
@@ -303,7 +302,7 @@ abstract class CometNativeExec extends CometExec {
         }
 
         if (inputs.nonEmpty) {
-          ZippedPartitionsRDD(sparkContext, inputs.toSeq)(createCometExecIter)
+          ZippedPartitionsRDD(sparkContext, inputs)(createCometExecIter)
         } else {
           val partitionNum = firstNonBroadcastPlanNumPartitions
           CometExecRDD(sparkContext, partitionNum)(createCometExecIter)
