@@ -32,9 +32,7 @@ license = { workspace = true }
 edition = { workspace = true }
 
 [features]
-default = ["hdfs", "try_spawn_blocking"]
-hdfs = ["fs-hdfs"]
-hdfs3 = ["fs-hdfs3"]
+default = ["fs-hdfs", "try_spawn_blocking"]
 # Used for trying to spawn a blocking thread for implementing each object store interface when running in a tokio runtime
 try_spawn_blocking = []
 
