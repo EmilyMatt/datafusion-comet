@@ -76,7 +76,7 @@ object Utils {
           val dt = fromArrowField(child)
           StructField(child.getName, dt, child.isNullable)
         }
-        StructType(fields.toSeq)
+        StructType(fields)
       case arrowType => fromArrowType(arrowType)
     }
   }
@@ -103,6 +103,9 @@ object Utils {
     case ArrowType.Null.INSTANCE => NullType
     case yi: ArrowType.Interval if yi.getUnit == IntervalUnit.YEAR_MONTH =>
       YearMonthIntervalType()
+    // Note that this is not a 100% match, as we use micros,
+    // but the FieldWriter for this type multiplies the results
+    case ci: ArrowType.Interval if ci.getUnit == IntervalUnit.MONTH_DAY_NANO => CalendarIntervalType
     case di: ArrowType.Interval if di.getUnit == IntervalUnit.DAY_TIME => DayTimeIntervalType()
     case _ => throw new UnsupportedOperationException(s"Unsupported data type: ${dt.toString}")
   }
