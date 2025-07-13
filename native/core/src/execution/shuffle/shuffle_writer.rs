@@ -717,7 +717,7 @@ impl MultiPartitionShuffleRepartitioner {
             &mut self.partition_indices,
             vec![vec![]; num_output_partitions],
         );
-        PartitionedBatchesProducer::new(buffered_batches, indices, self.batch_size)
+        PartitionedBatchesProducer::new(buffered_batches, indices, self.batch_size, self.metrics.repart_time.clone())
     }
 
     fn spill(&mut self) -> Result<()> {
@@ -1046,6 +1046,7 @@ struct PartitionedBatchesProducer {
     buffered_batches: Vec<RecordBatch>,
     partition_indices: Vec<Vec<(u32, u32)>>,
     batch_size: usize,
+    repart_time: Time
 }
 
 impl PartitionedBatchesProducer {
@@ -1053,11 +1054,13 @@ impl PartitionedBatchesProducer {
         buffered_batches: Vec<RecordBatch>,
         indices: Vec<Vec<(u32, u32)>>,
         batch_size: usize,
+        repart_time: Time,
     ) -> Self {
         Self {
             partition_indices: indices,
             buffered_batches,
             batch_size,
+            repart_time
         }
     }
 
@@ -1066,6 +1069,7 @@ impl PartitionedBatchesProducer {
             &self.partition_indices[partition_id],
             &self.buffered_batches,
             self.batch_size,
+            &self.repart_time
         )
     }
 }
@@ -1075,6 +1079,7 @@ struct PartitionedBatchIterator<'a> {
     batch_size: usize,
     indices: Vec<(usize, usize)>,
     pos: usize,
+    repart_time: &'a Time,
 }
 
 impl<'a> PartitionedBatchIterator<'a> {
@@ -1082,6 +1087,7 @@ impl<'a> PartitionedBatchIterator<'a> {
         indices: &'a [(u32, u32)],
         buffered_batches: &'a [RecordBatch],
         batch_size: usize,
+        repart_time: &'a Time,
     ) -> Self {
         if indices.is_empty() {
             // Avoid unnecessary allocations when the partition is empty
@@ -1090,18 +1096,24 @@ impl<'a> PartitionedBatchIterator<'a> {
                 batch_size,
                 indices: vec![],
                 pos: 0,
+                repart_time
             };
         }
+
+        let mut time = repart_time.timer();
         let record_batches = buffered_batches.iter().collect::<Vec<_>>();
         let current_indices = indices
             .iter()
             .map(|(i_batch, i_row)| (*i_batch as usize, *i_row as usize))
             .collect::<Vec<_>>();
+        time.stop();
+
         Self {
             record_batches,
             batch_size,
             indices: current_indices,
             pos: 0,
+            repart_time
         }
     }
 }
@@ -1113,6 +1125,8 @@ impl Iterator for PartitionedBatchIterator<'_> {
         if self.pos >= self.indices.len() {
             return None;
         }
+
+        let _time = self.repart_time.timer();
 
         let indices_end = std::cmp::min(self.pos + self.batch_size, self.indices.len());
         let indices = &self.indices[self.pos..indices_end];
@@ -1248,6 +1262,7 @@ impl<S: Borrow<ShuffleBlockWriter>, W: Write> BufBatchWriter<S, W> {
             let mut write_timer = write_time.timer();
             self.writer.write_all(&self.buffer)?;
             write_timer.stop();
+
             self.buffer.clear();
         }
         Ok(bytes_written)
@@ -1260,6 +1275,7 @@ impl<S: Borrow<ShuffleBlockWriter>, W: Write> BufBatchWriter<S, W> {
         }
         self.writer.flush()?;
         write_timer.stop();
+
         self.buffer.clear();
         Ok(())
     }
