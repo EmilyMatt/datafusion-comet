@@ -717,7 +717,12 @@ impl MultiPartitionShuffleRepartitioner {
             &mut self.partition_indices,
             vec![vec![]; num_output_partitions],
         );
-        PartitionedBatchesProducer::new(buffered_batches, indices, self.batch_size, self.metrics.repart_time.clone())
+        PartitionedBatchesProducer::new(
+            buffered_batches,
+            indices,
+            self.batch_size,
+            self.metrics.repart_time.clone(),
+        )
     }
 
     fn spill(&mut self) -> Result<()> {
@@ -1046,7 +1051,7 @@ struct PartitionedBatchesProducer {
     buffered_batches: Vec<RecordBatch>,
     partition_indices: Vec<Vec<(u32, u32)>>,
     batch_size: usize,
-    repart_time: Time
+    repart_time: Time,
 }
 
 impl PartitionedBatchesProducer {
@@ -1060,7 +1065,7 @@ impl PartitionedBatchesProducer {
             partition_indices: indices,
             buffered_batches,
             batch_size,
-            repart_time
+            repart_time,
         }
     }
 
@@ -1069,7 +1074,7 @@ impl PartitionedBatchesProducer {
             &self.partition_indices[partition_id],
             &self.buffered_batches,
             self.batch_size,
-            &self.repart_time
+            &self.repart_time,
         )
     }
 }
@@ -1096,7 +1101,7 @@ impl<'a> PartitionedBatchIterator<'a> {
                 batch_size,
                 indices: vec![],
                 pos: 0,
-                repart_time
+                repart_time,
             };
         }
 
@@ -1113,7 +1118,7 @@ impl<'a> PartitionedBatchIterator<'a> {
             batch_size,
             indices: current_indices,
             pos: 0,
-            repart_time
+            repart_time,
         }
     }
 }
