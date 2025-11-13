@@ -105,7 +105,9 @@ object CometMetricNode {
    */
   def baseScanMetrics(sc: SparkContext): Map[String, SQLMetric] = {
     Map(
-      "numOutputRows" -> SQLMetrics.createMetric(sc, "number of output rows"),
+      // Note that this metric happens on the Scala side, and is critical for Structured Streaming.
+      // this is not measured in the same way as num_output_rows in native scan metrics.
+      "numOutputRows" -> SQLMetrics.createMetric(sc, "number of output rows(Streaming metric)"),
       "scanTime" -> SQLMetrics.createNanoTimingMetric(sc, "scan time"))
   }
 
